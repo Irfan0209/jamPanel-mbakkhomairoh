@@ -35,7 +35,7 @@ JAM_DIGITAL_MASJID_MAS-YANTO 93 X 16
 char password[20] = "00000000";
 
 // Object Declarations
-DMDESP Disp(2,1);
+DMDESP Disp(1,1);
 
 //create object
 RtcDS3231<TwoWire> Rtc(Wire);
@@ -113,7 +113,7 @@ bool       panelState = false; // false = OFF, true = ON
 
 enum Show{
  // ANIM_ZONK,
-  ANIM_BIGFONT,
+  ANIM_JAM,
   ANIM_TEXT1,
   ANIM_TEXT2,
   ANIM_TEXT3,
@@ -127,7 +127,7 @@ enum Show{
   ANIM_BLINK,
   ANIM_COUNTER
 };
-Show show = ANIM_BIGFONT;
+Show show = ANIM_JAM;
 
 #define EEPROM_SIZE       2000
 
@@ -365,17 +365,17 @@ void loop()
   Disp.clear();
   
   switch(show){
-    case ANIM_BIGFONT : 
+    /*case ANIM_JAM : 
        anim_JG();
-    break;
+    break;*/
 
     case ANIM_DATE :
      dwMrq(showTanggal(),config.speedDate,1,1);
     break;
 
-    case ANIM_NAME :
+    /*case ANIM_NAME :
     dwMrq(config.name,config.speedName,2,1);
-    break;
+    break;*/
 
     case ANIM_TEXT1 :
     dwMrq(config.text1,config.speedText1,2,1);
@@ -398,7 +398,7 @@ void loop()
     break;
 
     case ANIM_SHOLAT :
-     updateAnimSholat();
+     animasiJadwalSholat();
     break;
 
     case ANIM_ADZAN :

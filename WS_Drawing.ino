@@ -20,7 +20,7 @@ inline uint32_t toSecond(uint8_t h, uint8_t m, uint8_t s = 0)
   return (uint32_t)h * 3600UL + (uint32_t)m * 60UL + s;
 }
 
-//================= animasi jadwal sholat new =================//
+/*/================= animasi jadwal sholat new =================//
 void updateAnimSholat() {
   if(adzan) return;
   
@@ -138,9 +138,117 @@ void updateAnimSholat() {
     s1 = 0;
     show = ANIM_COUNTER; // ganti mode jika perlu
   }
+}*/
+
+//================== animasi jadwal sholat ==============//
+void animasiJadwalSholat() {
+  if(adzan) return;
+  
+  RtcDateTime now = Rtc.GetDateTime();
+  static int8_t y = 0, y1 = 0;
+  static uint8_t s = 0, s1 = 0;
+  static bool run = false;
+  static uint8_t list = 0;
+
+  if(reset_x != 0){ 
+      y = 0;
+      y1 = 0;
+      s = 0;
+      s1 = 0;
+      reset_x = 0;
+  }
+
+  
+  static uint32_t lsRn_y1 = 0;
+  static uint32_t lsRn_y = 0;
+  static uint32_t tHold = 0;
+
+  uint32_t Tmr = millis();
+
+  // Pilih waktu sholat sesuai list
+  float stime;
+  switch (list) {
+    case 0: stime = JWS.floatImsak; break;
+    case 1: stime = JWS.floatSubuh; break;
+    case 2: stime = JWS.floatTerbit; break;
+    case 3: stime = JWS.floatDzuhur; break;
+    case 4: stime = JWS.floatAshar; break;
+    case 5: stime = JWS.floatMaghrib; break;
+    case 6: stime = JWS.floatIsya; break;
+    default: stime = 0; break;
+  }
+
+  // Transisi vertikal y1 (jam muncul/hilang)
+  if ((Tmr - lsRn_y1) > 55) {
+    lsRn_y1 = Tmr;
+
+    if (s1 == 0 && y1 < 17) { y1++; } 
+    else if (s1 == 1 && y1 > 0) { y1--; }
+  }
+
+  // Saat y1 selesai muncul, mulai animasi jadwal
+  if (y1 == 17 && s1 == 0) {
+    run = true; 
+  }
+
+  // Animasi gerakan teks (y)
+  if (run && (Tmr - lsRn_y) > 55) {
+    lsRn_y = Tmr;
+
+    if (s == 0 && y < 9) {
+      y++;
+    } else if (s == 1 && y > 0) {
+      y--;
+    }
+  }
+
+  // Delay sebelum animasi keluar (reverse)
+  if (y == 9 && s == 0 && tHold == 0) {
+    tHold = millis();
+  }
+  if (tHold > 0 && (millis() - tHold > 800)) {
+    s = 1;     // mulai keluar
+    tHold = 0; // reset timer
+  }
+
+  // Setelah animasi selesai
+  if (y == 0 && s == 1) {
+    s = 0;
+    list = (list + 1) % 7;
+    if (list == 0) {
+      run = false;
+      s1 = 1; // trigger keluar vertikal
+    }
+  }
+
+  // Tampilkan teks jadwal sholat
+  uint8_t shour = (uint8_t)stime;
+  uint8_t sminute = (uint8_t)((stime - shour) * 60);
+
+  if(list == 1){sholatSec[1] = toSecond(shour, sminute); }
+  else if(list == 3){sholatSec[2] = toSecond(shour, sminute); }
+  else if(list == 4){sholatSec[3] = toSecond(shour, sminute); }
+  else if(list == 5){sholatSec[4] = toSecond(shour, sminute); }
+  else if(list == 6){sholatSec[5] = toSecond(shour, sminute); }
+
+  char buf[6];
+  buf[0] = '0' + shour / 10;
+  buf[1] = '0' + shour % 10;
+  buf[2] = ':';
+  buf[3] = '0' + sminute / 10;
+  buf[4] = '0' + sminute % 10;
+  buf[5] = '\0';
+
+  fType(0);
+  dwCtr(0, y - 9, jadwal[list]);
+  fType(1);
+  dwCtr(0, 18 - y, buf);
+  DoSwap = true;
+  if (y1 == 0 && s1 == 1) {
+    s1 = 0;
+    show = ANIM_JAM; // ganti mode jika perlu
+  }
 }
-
-
 //================== animasi jam besar ==================//
 void anim_JG()
   {
@@ -353,8 +461,8 @@ void nextShowState()
     case ANIM_TEXT3:   show = ANIM_TEXT4; break;
     case ANIM_TEXT4:   show = ANIM_TEXT5; break;
     case ANIM_TEXT5:   show = ANIM_SHOLAT; break;
-//    case ANIM_SHOLAT:   show = ANIM_SHOLAT; break;
-    case ANIM_COUNTER: show = ANIM_BIGFONT; break;
+    //case ANIM_SHOLAT:   show = ANIM_SHOLAT; break;
+    //case ANIM_COUNTER: show = ANIM_BIGFONT; break;
   }
 }
 
@@ -389,7 +497,7 @@ void drawAzzan()
     
     if ((Tmr - lsRn) > 1500 && (ct > limit))
     {
-        show = ANIM_IQOMAH;
+        show = ANIM_JAM;
         ct = 0;
         Buzzer(0);
     }
@@ -468,7 +576,7 @@ void blinkBlock()
         sholatNow = -1;
         adzan = false;
         ct = 0;
-        show = ANIM_BIGFONT;
+        show = ANIM_JAM;
     }
 }
 //===================================== end =================================//
