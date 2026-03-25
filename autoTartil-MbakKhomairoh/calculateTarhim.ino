@@ -60,7 +60,7 @@ void cekDanPutarSholatNonBlocking() {
   if (minute() == 0  && second() == 0 && !stateJadwal) {
     stateJadwal = true;
     //Serial.println(F("jadwal"));
-    if(wsConnected){ webSocket.sendTXT("jadwal"); }
+   // if(wsConnected){ webSocket.sendTXT("jadwal"); }
   } else if (second() != 0) {
     stateJadwal = false;
   } 
