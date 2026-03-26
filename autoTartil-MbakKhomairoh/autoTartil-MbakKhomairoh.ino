@@ -1,7 +1,16 @@
-
+/*
+ * Controller menggunakan ESP32 
+ * Controller difungsikan untuk menghitung dan memproses waktu pemutaran Auto Tartil
+ * Controller difungsikan juga untuk Acces Point (komunikasi ke User)
+*/
+ 
 #include <DFRobotDFPlayerMini.h>
 #include <EEPROM.h>
 #include <TimeLib.h>
+#include <esp_task_wdt.h>
+
+// Atur batas waktu WDT (misalnya 15 detik)
+constexpr uint8_t WDT_TIMEOUT = 15;
 
 #define PASSWORD_LEN 20   // maksimal 15 karakter + '\0'
 //KONFIGURASI WIFI
@@ -318,83 +327,6 @@ void handleSetTime() {
     server.send(200, "text/plain", "OK");
     return;
   }
-  /*if (server.hasArg("PLAY")) {
-    // 1. Ambil data mentah sebagai String hanya untuk parsing
-    String mentah = server.arg("PLAY"); 
-    
-    int idx = 0;
-    byte folder = getIntPart(mentah, idx);
-    byte file   = getIntPart(mentah, idx);
-
-    // 2. Format data langsung ke dalam dataBuffer
-    // %d adalah placeholder untuk integer/byte
-    snprintf(dataBuffer, sizeof(dataBuffer), "PLAY:%d,%d", folder, file);
-
-    // 3. Kirim data yang sudah rapi di buffer ke client
-    parseData(dataBuffer); 
-
-    server.send(200, "text/plain", "OK");
-    return; // Keluar dari fungsi agar lebih efisien
-}
-
-// --- PLAD ---
-  if (server.hasArg("PLAD")) {
-    String mentah = server.arg("PLAD");
-    int idx = 0;
-    byte file = getIntPart(mentah, idx);
-    snprintf(dataBuffer, sizeof(dataBuffer), "PLAD:%d", file);
-    parseData(dataBuffer);
-    server.send(200, "text/plain", "OK");
-    return;
-  }
-
-  // --- STOP ---
-  if (server.hasArg("STOP")) {
-    parseData("STOP"); // Langsung kirim teks statis
-    server.send(200, "text/plain", "OK");
-    return;
-  }
-
-  // --- VOL ---
-  if (server.hasArg("VOL")) {
-    snprintf(dataBuffer, sizeof(dataBuffer), "VOL:%s", server.arg("VOL").c_str());
-    parseData(dataBuffer);
-    server.send(200, "text/plain", "OK");
-    return;
-  }
-
-  // --- HR ---
-  if (server.hasArg("HR")) {
-    snprintf(dataBuffer, sizeof(dataBuffer), "HR:%s", server.arg("HR").c_str());
-    parseData(dataBuffer);
-    server.send(200, "text/plain", "OK");
-    return;
-  }
-
-  // --- NAMAFILE ---
-  if (server.hasArg("NAMAFILE")) {
-    String mentah = server.arg("NAMAFILE");
-    int idx = 0;
-    byte folder = getIntPart(mentah, idx);
-    byte file   = getIntPart(mentah, idx);
-    int durasi  = getIntPart(mentah, idx);
-    snprintf(dataBuffer, sizeof(dataBuffer), "NAMAFILE:%d,%d,%d", folder, file, durasi);
-    parseData(dataBuffer);
-    server.send(200, "text/plain", "OK");
-    return;
-  }
-
-  // --- ADZAN ---
-  if (server.hasArg("ADZAN")) {
-    String mentah = server.arg("ADZAN");
-    int idx = 0;
-    byte file  = getIntPart(mentah, idx);
-    int durasi = getIntPart(mentah, idx);
-    snprintf(dataBuffer, sizeof(dataBuffer), "ADZAN:%d,%d", file, durasi);
-    parseData(dataBuffer);
-    server.send(200, "text/plain", "OK");
-    return;
-  }*/
 
   // --- At ---
   if (server.hasArg("At")) {
@@ -425,29 +357,6 @@ void handleSetTime() {
       server.send(200, "text/plain", "OK");
       return;
   }
- 
- /*if (server.hasArg("newPassword")) {
-      // 1. Ambil password baru dari argumen server
-      String passwordBaru = server.arg("newPassword");
-
-      // 2. Format untuk kirim ke serial/monitor (dataBuffer)
-      snprintf(dataBuffer, sizeof(dataBuffer), "newPassword=%s", passwordBaru.c_str());
-      
-      // 3. Simpan ke variabel global 'pass' untuk digunakan fungsi Restart nanti
-      // Kita langsung isi, tidak perlu ditambah-tambah (+) agar tidak menumpuk
-  //    pass = dataBuffer; 
-
-      //getData(dataBuffer);
-      parseData(dataBuffer);
-
-//      // 4. Picu proses restart
-//      stateRestart = true;
-      
-      server.send(200, "text/plain", "OK");
-      return;
-  }*/
-  
-  //EEPROM.commit();
 }
 
 void AP_init() {
@@ -468,6 +377,18 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
   pinMode(NORMAL_STATUS_LED, OUTPUT);
+
+ // --- Inisialisasi Watchdog Timer untuk ESP32 Core v3.x ---
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = WDT_TIMEOUT * 1000,                // Ubah satuan detik menjadi milidetik
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1, // Memantau aktivitas di semua core
+    .trigger_panic = true                            // Paksa restart jika mikrokontroler hang
+  };
+  
+  esp_task_wdt_init(&wdt_config);
+  esp_task_wdt_add(NULL); // Daftarkan fungsi loop() ke dalam pengawasan anjing penjaga
+  // ---------------------------------------------------------
+  Serial.println(F("Watchdog Timer Aktif!"));
   
   delay(1000);
   Serial.begin(9600);
@@ -493,6 +414,7 @@ void loop() {
   if (sudahEksekusi && millis() - lastTriggerMillis > 60000) {
     sudahEksekusi = false;
   }
+  esp_task_wdt_reset();
   server.handleClient();
   cekDanPutarSholatNonBlocking();
   cekSelesaiTartil();
@@ -745,7 +667,7 @@ void parseData(const char* data) {
   }
 
   // --- Parsing JWS: ---
-  // Format asumi: JWS:jam1,menit1|jam2,menit2|jam3,menit3...
+  /*/ Format asumi: JWS:jam1,menit1|jam2,menit2|jam3,menit3...
   else if (strncmp(data, "JWS:", 4) == 0) {
     const char* ptr = data + 4;
     for (int i = 0; i < WAKTU_TOTAL; i++) {
@@ -764,6 +686,46 @@ void parseData(const char* data) {
       ptr++; // Lewati pipa
     }
     saveToEEPROM();
+  }*/
+  // --- Parsing JWS: ---
+  // Format asumi: JWS:jam1,menit1|jam2,menit2|jam3,menit3...
+  else if (strncmp(data, "JWS:", 4) == 0) {
+    const char* ptr = data + 4;
+    bool adaPerubahan = false; // Flag penanda apakah ada data yang berubah
+
+    for (int i = 0; i < WAKTU_TOTAL; i++) {
+      uint8_t tempJam = atoi(ptr); // Tampung jam di variabel sementara
+
+      ptr = strchr(ptr, ',');
+      if (!ptr) break;
+      ptr++; // Lewati koma
+      
+      uint8_t tempMenit = atoi(ptr); // Tampung menit di variabel sementara
+
+      // Cek apakah data baru BERBEDA dengan data yang sedang berjalan di sistem
+      if (jamSholat[i] != tempJam || menitSholat[i] != tempMenit) {
+        jamSholat[i] = tempJam;     // Update array utama karena beda
+        menitSholat[i] = tempMenit; // Update array utama karena beda
+        adaPerubahan = true;        // Tandai bahwa ada perubahan data
+      }
+
+      Serial.print(tempJam); Serial.print(F(":")); 
+      Serial.print(tempMenit); Serial.print(F(" | "));
+      
+      ptr = strchr(ptr, '|');
+      if (!ptr) break; // Jika tidak ada pemisah lagi, selesai
+      ptr++; // Lewati pipa
+    }
+
+    Serial.println(); // Enter untuk merapikan Serial Monitor
+
+    // Eksekusi simpan HANYA jika terdeteksi ada perubahan angka
+    if (adaPerubahan) {
+      Serial.println(F("[INFO] Jadwal sholat diubah, menyimpan ke EEPROM..."));
+      saveToEEPROM();
+    } else {
+      Serial.println(F("[INFO] Jadwal sholat sama persis, abaikan EEPROM (Hemat Flash)."));
+    }
   }
 
   // --- Parsing At: --- (Auto Tartil)
