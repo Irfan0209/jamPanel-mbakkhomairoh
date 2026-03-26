@@ -41,11 +41,11 @@ IPAddress subnet(255, 255, 255, 0);
 
 #define HARI_TOTAL  8 // 7 hari + SemuaHari (index ke-7)
 #define WAKTU_TOTAL 5
-#define MAX_FILE    50
-#define MAX_FOLDER  2 //3
+#define MAX_FILE    30
+#define MAX_FOLDER  3
 #define JEDA_ANTAR_TARTIL 20 //500 jeda antar file tartil dalam milidetik
 
-//#define DEBUG 1
+#define DEBUG 1
 
 struct WaktuConfig {
   byte aktif;
@@ -281,6 +281,26 @@ void handleSetTime() {
     server.send(200, "text/plain","OK");// (stateBuzzer) ? "Suara Diaktifkan" : "Suara Dimatikan");
     return;
   }
+  // --- STOP ---
+  if (server.hasArg("STOP")) {
+    parseData("STOP"); // Langsung kirim teks statis
+    server.send(200, "text/plain", "OK");
+    return;
+  }
+
+  // --- VOL ---
+  if (server.hasArg("VOL")) {
+    snprintf(dataBuffer, sizeof(dataBuffer), "VOL:%s", server.arg("VOL").c_str());
+    parseData(dataBuffer);
+    server.send(200, "text/plain", "OK");
+    return;
+  }
+  if (server.hasArg("HR")) {
+    snprintf(dataBuffer, sizeof(dataBuffer), "HR:%s", server.arg("HR").c_str());
+    parseData(dataBuffer); 
+    server.send(200, "text/plain", "OK");
+    return; // Tambahkan return agar eksekusi fungsi langsung berhenti di sini (menghemat CPU)
+  }
   // --- PLAY ---
   if (server.hasArg("PLAY")) {
     uint8_t folder = 0, file = 0;
@@ -352,7 +372,7 @@ void handleSetTime() {
   }
 
   if (server.hasArg("newPassword")) {
-      snprintf(dataBuffer, sizeof(dataBuffer), "newPassword=%s", server.arg("newPassword").c_str());
+      snprintf(dataBuffer, sizeof(dataBuffer), "newPassword:%s", server.arg("newPassword").c_str());
       parseData(dataBuffer);
       server.send(200, "text/plain", "OK");
       return;
@@ -378,7 +398,25 @@ void setup() {
   pinMode(LED_WIFI, OUTPUT);
   pinMode(NORMAL_STATUS_LED, OUTPUT);
 
- // --- Inisialisasi Watchdog Timer untuk ESP32 Core v3.x ---
+  Serial.begin(9600);
+  dfSerial.begin(9600, SERIAL_8N1, /*rx =*/16, /*tx =*/17);
+ 
+  if (!dfplayer.begin(dfSerial,/*isACK = */true, /*doReset = */true)) {
+    Serial.println(F("DFPlayer tidak terdeteksi!"));
+    while (1);
+  }
+
+  delay(500);
+ 
+  
+  dfplayer.enableDAC(); // Pakai output DAC (line out)
+  Serial.println(F("Sistem Auto Tartil Siap."));
+  
+  loadFromEEPROM();
+  
+  delay(1000);
+
+  // --- Inisialisasi Watchdog Timer untuk ESP32 Core v3.x ---
   esp_task_wdt_config_t wdt_config = {
     .timeout_ms = WDT_TIMEOUT * 1000,                // Ubah satuan detik menjadi milidetik
     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1, // Memantau aktivitas di semua core
@@ -387,24 +425,10 @@ void setup() {
   
   esp_task_wdt_init(&wdt_config);
   esp_task_wdt_add(NULL); // Daftarkan fungsi loop() ke dalam pengawasan anjing penjaga
-  // ---------------------------------------------------------
   Serial.println(F("Watchdog Timer Aktif!"));
+
+  // ---------------------------------------------------------
   
-  delay(1000);
-  Serial.begin(9600);
-  dfSerial.begin(9600, SERIAL_8N1, /*rx =*/16, /*tx =*/17);
- 
-  if (!dfplayer.begin(dfSerial,/*isACK = */true, /*doReset = */true)) {
-    Serial.println("DFPlayer tidak terdeteksi!");
-    while (1);
-  }
-  
-  dfplayer.enableDAC(); // Pakai output DAC (line out)
-  Serial.println("Sistem Auto Tartil Siap.");
-  
-  loadFromEEPROM();
-  
-  delay(1000);
   AP_init();
   dfplayer.volume(volumeDFPlayer);  
   digitalWrite(RELAY_PIN, HIGH); // Awal mati
@@ -422,18 +446,8 @@ void loop() {
   cekSelesaiAdzanManual();
   cekSelesaiManual();
   getStatusRun();
- 
+  bacaDataSerial();
 }
-
-
-/*/================= parsing data dari Akses Point =========================//
-int getIntPart(String &s, int &pos) {
-  int comma = s.indexOf(',', pos);
-  if (comma == -1) comma = s.length();
-  int val = s.substring(pos, comma).toInt();
-  pos = comma + 1;
-  return val;
-}*/
 
 void bacaDataSerial() {
   // Booking memori statis sebesar 512 byte (sesuaikan jika data lebih panjang)
@@ -471,7 +485,7 @@ void bacaDataSerial() {
 
 // 1. Ubah parameter dari String menjadi const char*
 void parseData(const char* data) {
-  Serial.print(F("data=")); Serial.println(data);
+  //Serial.print(F("data=")); Serial.println(data);
   lastTimeReceived = millis();
 
   // --- Parsing TIME: ---
@@ -493,18 +507,18 @@ void parseData(const char* data) {
     
     uint8_t hari  = atoi(ptr);
 
-    Serial.print(F("[DEBUG TIME] Terekstrak -> Jam: ")); Serial.print(jam);
-    Serial.print(F(", Menit: ")); Serial.print(menit);
-    Serial.print(F(", Detik: ")); Serial.print(detik);
-    Serial.print(F(", Hari: ")); Serial.println(hari);
+//    Serial.print(F("[DEBUG TIME] Terekstrak -> Jam: ")); Serial.print(jam);
+//    Serial.print(F(", Menit: ")); Serial.print(menit);
+//    Serial.print(F(", Detik: ")); Serial.print(detik);
+//    Serial.print(F(", Hari: ")); Serial.println(hari);
 
     if (jam < 24 && menit < 60 && detik < 60 && hari < 7) {
      // Rtc.SetDateTime(RtcDateTime(now.Year(), now.Month(), now.Day(), jam, menit, detik));
       setTime(jam, menit, detik, 23, 4, 2026);
       currentDay = hari;
-      Serial.println(F("[DEBUG TIME] RTC Berhasil Diupdate!"));
+      //Serial.println(F("[DEBUG TIME] RTC Berhasil Diupdate!"));
     } else {
-      Serial.println(F("[ERROR TIME] Data waktu tidak masuk akal (Out of range)!"));
+      //Serial.println(F("[ERROR TIME] Data waktu tidak masuk akal (Out of range)!"));
     }
     return;
   }
@@ -513,8 +527,8 @@ void parseData(const char* data) {
   else if (strncmp(data, "VOL:", 4) == 0) {
     volumeDFPlayer = atoi(data + 4);
 
-    Serial.print(F("[DEBUG VOL] Volume diubah ke: ")); 
-    Serial.println(volumeDFPlayer);
+//    Serial.print(F("[DEBUG VOL] Volume diubah ke: ")); 
+//    Serial.println(volumeDFPlayer);
     
     dfplayer.volume(volumeDFPlayer);
     saveToEEPROM();
@@ -539,13 +553,13 @@ void parseData(const char* data) {
       w_ptr += strlen(tag); // Lompat ke nilai setelah tag
       WaktuConfig &cfg = jadwal[hari][w];
 
-      Serial.print(F("  -> Waktu [")); Serial.print(w);
-      Serial.print(F("] Aktif:")); Serial.print(cfg.aktif);
-      Serial.print(F(", Adzan:")); Serial.print(cfg.aktifAdzan);
-      Serial.print(F(", FileAdzan:")); Serial.print(cfg.fileAdzan);
-      Serial.print(F(", Tartil:")); Serial.print(cfg.tartilDulu);
-      Serial.print(F(", Folder:")); Serial.print(cfg.folder);
-      Serial.print(F(", ListFile: "));
+//      Serial.print(F("  -> Waktu [")); Serial.print(w);
+//      Serial.print(F("] Aktif:")); Serial.print(cfg.aktif);
+//      Serial.print(F(", Adzan:")); Serial.print(cfg.aktifAdzan);
+//      Serial.print(F(", FileAdzan:")); Serial.print(cfg.fileAdzan);
+//      Serial.print(F(", Tartil:")); Serial.print(cfg.tartilDulu);
+//      Serial.print(F(", Folder:")); Serial.print(cfg.folder);
+//      Serial.print(F(", ListFile: "));
 
       // Ambil 5 nilai berurutan (asumsi dipisah koma atau karakter non-angka)
       cfg.aktif      = atoi(w_ptr); while (*w_ptr && *w_ptr >= '0' && *w_ptr <= '9') w_ptr++; if (*w_ptr) w_ptr++;
@@ -558,7 +572,7 @@ void parseData(const char* data) {
       for (int i = 0; i < 5; i++) {
         cfg.list[i] = atoi(w_ptr);
 
-        Serial.print(cfg.list[i]); Serial.print(F("-"));
+//        Serial.print(cfg.list[i]); Serial.print(F("-"));
         
         const char* dash = strchr(w_ptr, '-');
         if (dash) {
@@ -566,7 +580,7 @@ void parseData(const char* data) {
         } else {
           break; // Keluar dari loop jika tidak ada dash lagi
         }
-        Serial.println(); // Enter setelah selesai 1 waktu
+//        Serial.println(); // Enter setelah selesai 1 waktu
       }
     }
     saveToEEPROM();
@@ -580,8 +594,8 @@ void parseData(const char* data) {
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
     byte file   = atoi(ptr);
 
-    Serial.print(F("[DEBUG PLAY] Folder: ")); Serial.print(folder);
-    Serial.print(F(", File: ")); Serial.print(file);
+//    Serial.print(F("[DEBUG PLAY] Folder: ")); Serial.print(folder);
+//    Serial.print(F(", File: ")); Serial.print(file);
 
     if (folder >= 1 && folder < 12 && file >= 1 && file < MAX_FILE) {
       uint16_t durasi = durasiTartil[folder - 1][file];
@@ -603,8 +617,8 @@ void parseData(const char* data) {
     byte file = atoi(data + 5);
     uint16_t durasi = durasiAdzan[file];
 
-    Serial.print(F("[DEBUG PLAD] Play Adzan Manual File: ")); Serial.print(file);
-    Serial.print(F(", Durasi Target: ")); Serial.println(durasi);
+//    Serial.print(F("[DEBUG PLAD] Play Adzan Manual File: ")); Serial.print(file);
+//    Serial.print(F(", Durasi Target: ")); Serial.println(durasi);
     
     if (durasi > 0) {
       dfplayer.volume(volumeDFPlayer);
@@ -625,7 +639,7 @@ void parseData(const char* data) {
     tartilSedangDiputar = false;
     adzanSedangDiputar  = false;
     manualSedangDiputar = false;
-    Serial.println(F("[DEBUG STOP] DFPlayer & Relay telah DIMATIKAN secara paksa."));
+//    Serial.println(F("[DEBUG STOP] DFPlayer & Relay telah DIMATIKAN secara paksa."));
     return;
   }
 
@@ -638,9 +652,9 @@ void parseData(const char* data) {
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
     int durasi  = atoi(ptr);
 
-    Serial.print(F("[DEBUG NAMAFILE] Durasi Tartil Disimpan -> Folder: ")); Serial.print(folder);
-    Serial.print(F(", List: ")); Serial.print(list);
-    Serial.print(F(", Durasi: ")); Serial.println(durasi);
+//    Serial.print(F("[DEBUG NAMAFILE] Durasi Tartil Disimpan -> Folder: ")); Serial.print(folder);
+//    Serial.print(F(", List: ")); Serial.print(list);
+//    Serial.print(F(", Durasi: ")); Serial.println(durasi);
 
     if (folder < MAX_FOLDER && list < MAX_FILE) {
       durasiTartil[folder][list] = durasi;
@@ -656,8 +670,8 @@ void parseData(const char* data) {
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
     int durasi = atoi(ptr);
 
-    Serial.print(F("[DEBUG ADZAN] Durasi Adzan Disimpan -> File: ")); Serial.print(file);
-    Serial.print(F(", Durasi: ")); Serial.println(durasi);
+//    Serial.print(F("[DEBUG ADZAN] Durasi Adzan Disimpan -> File: ")); Serial.print(file);
+//    Serial.print(F(", Durasi: ")); Serial.println(durasi);
 
     if (file < MAX_FILE) {
       durasiAdzan[file] = durasi;
@@ -666,27 +680,6 @@ void parseData(const char* data) {
     return;
   }
 
-  // --- Parsing JWS: ---
-  /*/ Format asumi: JWS:jam1,menit1|jam2,menit2|jam3,menit3...
-  else if (strncmp(data, "JWS:", 4) == 0) {
-    const char* ptr = data + 4;
-    for (int i = 0; i < WAKTU_TOTAL; i++) {
-      jamSholat[i] = atoi(ptr);
-      ptr = strchr(ptr, ',');
-      if (!ptr) break;
-      ptr++; // Lewati koma
-      
-      menitSholat[i] = atoi(ptr);
-
-      Serial.print(jamSholat[i]); Serial.print(F(":")); 
-      Serial.print(menitSholat[i]); Serial.print(F(" | "));
-      
-      ptr = strchr(ptr, '|');
-      if (!ptr) break; // Jika tidak ada pemisah lagi, selesai
-      ptr++; // Lewati pipa
-    }
-    saveToEEPROM();
-  }*/
   // --- Parsing JWS: ---
   // Format asumi: JWS:jam1,menit1|jam2,menit2|jam3,menit3...
   else if (strncmp(data, "JWS:", 4) == 0) {
@@ -709,22 +702,22 @@ void parseData(const char* data) {
         adaPerubahan = true;        // Tandai bahwa ada perubahan data
       }
 
-      Serial.print(tempJam); Serial.print(F(":")); 
-      Serial.print(tempMenit); Serial.print(F(" | "));
+//      Serial.print(tempJam); Serial.print(F(":")); 
+//      Serial.print(tempMenit); Serial.print(F(" | "));
       
       ptr = strchr(ptr, '|');
       if (!ptr) break; // Jika tidak ada pemisah lagi, selesai
       ptr++; // Lewati pipa
     }
 
-    Serial.println(); // Enter untuk merapikan Serial Monitor
+//    Serial.println(); // Enter untuk merapikan Serial Monitor
 
     // Eksekusi simpan HANYA jika terdeteksi ada perubahan angka
     if (adaPerubahan) {
-      Serial.println(F("[INFO] Jadwal sholat diubah, menyimpan ke EEPROM..."));
+//      Serial.println(F("[INFO] Jadwal sholat diubah, menyimpan ke EEPROM..."));
       saveToEEPROM();
     } else {
-      Serial.println(F("[INFO] Jadwal sholat sama persis, abaikan EEPROM (Hemat Flash)."));
+//      Serial.println(F("[INFO] Jadwal sholat sama persis, abaikan EEPROM (Hemat Flash)."));
     }
   }
 
@@ -732,8 +725,8 @@ void parseData(const char* data) {
   else if (strncmp(data, "At:", 3) == 0) {
     autoTartilEnable = atoi(data + 3);
 
-    Serial.print(F("[DEBUG At] Status Auto Tartil diubah menjadi: ")); 
-    Serial.println(autoTartilEnable ? F("AKTIF") : F("NONAKTIF"));
+//    Serial.print(F("[DEBUG At] Status Auto Tartil diubah menjadi: ")); 
+//    Serial.println(autoTartilEnable ? F("AKTIF") : F("NONAKTIF"));
     saveToEEPROM();
     return;
   }
@@ -742,9 +735,9 @@ void parseData(const char* data) {
   else if (strncmp(data, "newPassword:", 12) == 0) {
     const char* pwd = data + 12;
 
-    Serial.print(F("[DEBUG PASSWORD] Request ubah password ke: '"));
-    Serial.print(pwd);
-    Serial.println(F("'"));
+//    Serial.print(F("[DEBUG PASSWORD] Request ubah password ke: '"));
+//    Serial.print(pwd);
+//    Serial.println(F("'"));
     
     if (strlen(pwd) == 8) {
       strncpy(password, pwd, 9); // Copy 8 karakter + null terminator
@@ -752,12 +745,9 @@ void parseData(const char* data) {
       delay(1000);
       ESP.restart();
     } else {
-      Serial.println(F("Password invalid (harus 8 karakter)"));
+//      Serial.println(F("Password invalid (harus 8 karakter)"));
     }
     return;
   }
-
-  // Pemanggilan default jika ada data yang lolos tidak di-return sebelumnya
-  // saveToEEPROM(); (Aktifkan jika memang setiap data yang tak teridentifikasi harus memicu simpan)
 }
 //============================== END =================================//
