@@ -48,27 +48,27 @@ IPAddress subnet(255, 255, 255, 0);
 #define DEBUG 1
 
 struct WaktuConfig {
-  byte aktif;
-  byte aktifAdzan;
-  byte fileAdzan;
-  byte tartilDulu;
-  byte folder;
-  byte list[5];
+  bool aktif;
+  bool aktifAdzan;
+  uint8_t fileAdzan;
+  bool tartilDulu;
+  uint8_t folder;
+  uint8_t list[5];
 };
 
 WaktuConfig jadwal[HARI_TOTAL][WAKTU_TOTAL];
 uint8_t durasiAdzan[MAX_FILE];
 uint16_t durasiTartil[MAX_FOLDER][MAX_FILE];
 
-byte volumeDFPlayer;
+uint8_t volumeDFPlayer;
 
 uint8_t jamSholat[WAKTU_TOTAL]; //= {4, 12, 15, 18, 19};
 uint8_t menitSholat[WAKTU_TOTAL];// = {30, 0, 30, 0, 30};
 
 bool tartilSedangDiputar = false;
 uint32_t tartilMulaiMillis = 0;
-byte tartilFolder = 0;
-byte tartilIndex = 0;
+uint8_t tartilFolder = 0;
+uint8_t tartilIndex = 0;
 
 uint16_t tartilCounter = 0;
 uint16_t targetDurasi = 0;
@@ -89,7 +89,7 @@ uint32_t lastAdzanTick = 0;
 uint16_t adzanCounter = 0;
 uint16_t targetDurasiAdzan = 0;
 
-byte currentDay = 0;
+uint8_t currentDay = 0;
 
 // Tambahan untuk relay delay dan manual
 // uint32_t relayOffDelayMillis = 0;
@@ -540,10 +540,10 @@ void parseData(const char* data) {
   else if (strncmp(data, "HR:", 3) == 0) {
     const char* ptr = data + 3;
     
-    int hari = atoi(ptr);
+    uint8_t hari = atoi(ptr);
     if (hari < 0 || hari >= HARI_TOTAL) return;
 
-    for (int w = 0; w < WAKTU_TOTAL; w++) {
+    for (uint8_t w = 0; w < WAKTU_TOTAL; w++) {
       char tag[8];
       snprintf(tag, sizeof(tag), "|W%d:", w);
       
@@ -569,7 +569,7 @@ void parseData(const char* data) {
       cfg.folder     = atoi(w_ptr); while (*w_ptr && *w_ptr >= '0' && *w_ptr <= '9') w_ptr++; if (*w_ptr) w_ptr++;
 
       // Ambil list file (dipisah dengan dash '-')
-      for (int i = 0; i < 5; i++) {
+      for (uint8_t i = 0; i < 5; i++) {
         cfg.list[i] = atoi(w_ptr);
 
 //        Serial.print(cfg.list[i]); Serial.print(F("-"));
@@ -590,9 +590,9 @@ void parseData(const char* data) {
   // --- Parsing PLAY: ---
   else if (strncmp(data, "PLAY:", 5) == 0) {
     const char* ptr = data + 5;
-    byte folder = atoi(ptr);
+    uint8_t folder = atoi(ptr);
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
-    byte file   = atoi(ptr);
+    uint8_t file   = atoi(ptr);
 
 //    Serial.print(F("[DEBUG PLAY] Folder: ")); Serial.print(folder);
 //    Serial.print(F(", File: ")); Serial.print(file);
@@ -614,7 +614,7 @@ void parseData(const char* data) {
 
   // --- Parsing PLAD: ---
   else if (strncmp(data, "PLAD:", 5) == 0) {
-    byte file = atoi(data + 5);
+    uint8_t file = atoi(data + 5);
     uint16_t durasi = durasiAdzan[file];
 
 //    Serial.print(F("[DEBUG PLAD] Play Adzan Manual File: ")); Serial.print(file);
@@ -646,11 +646,11 @@ void parseData(const char* data) {
   // --- Parsing NAMAFILE: ---
   else if (strncmp(data, "NAMAFILE:", 9) == 0) {
     const char* ptr = data + 9;
-    byte folder = atoi(ptr);
+    uint8_t folder = atoi(ptr);
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
-    byte list   = atoi(ptr);
+    uint8_t list   = atoi(ptr);
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
-    int durasi  = atoi(ptr);
+    uint16_t durasi  = atoi(ptr);
 
 //    Serial.print(F("[DEBUG NAMAFILE] Durasi Tartil Disimpan -> Folder: ")); Serial.print(folder);
 //    Serial.print(F(", List: ")); Serial.print(list);
@@ -666,9 +666,9 @@ void parseData(const char* data) {
   // --- Parsing ADZAN: ---
   else if (strncmp(data, "ADZAN:", 6) == 0) {
     const char* ptr = data + 6;
-    byte file  = atoi(ptr);
+    uint8_t file  = atoi(ptr);
     while (*ptr && *ptr >= '0' && *ptr <= '9') ptr++; if (*ptr) ptr++;
-    int durasi = atoi(ptr);
+    uint16_t durasi = atoi(ptr);
 
 //    Serial.print(F("[DEBUG ADZAN] Durasi Adzan Disimpan -> File: ")); Serial.print(file);
 //    Serial.print(F(", Durasi: ")); Serial.println(durasi);
@@ -686,7 +686,7 @@ void parseData(const char* data) {
     const char* ptr = data + 4;
     bool adaPerubahan = false; // Flag penanda apakah ada data yang berubah
 
-    for (int i = 0; i < WAKTU_TOTAL; i++) {
+    for (uint8_t i = 0; i < WAKTU_TOTAL; i++) {
       uint8_t tempJam = atoi(ptr); // Tampung jam di variabel sementara
 
       ptr = strchr(ptr, ',');
