@@ -255,10 +255,7 @@ void anim_JG()
     if(adzan) return;
     
    RtcDateTime now = Rtc.GetDateTime();
-    char  BuffJ[6];
-    char  BuffM[6];
-    char  BuffD[6];
-    uint8_t daynow = now.DayOfWeek();
+   uint8_t daynow = now.DayOfWeek();
     
     static byte    y;
     static bool    s; // 0=in, 1=out              
@@ -271,24 +268,21 @@ void anim_JG()
         if(s==1 and y>0){lsRn=Tmr; y--; }
       }
     
+    fType(3);
 
-    snprintf(BuffJ,sizeof(BuffJ),"%02d",now.Hour());
-    snprintf(BuffM,sizeof(BuffM),"%02d",now.Minute());
-    snprintf(BuffD,sizeof(BuffD),"%02d",now.Second());
-
-    fType(5);
-    Disp.drawText(0,17-y,BuffJ);  //tampilkan jam 1
-    Disp.drawText(23,y-17,BuffM);  //tampilkan menit
-    Disp.drawText(64-y,0,BuffD);  //tampilkan detik //x=50  67
+    Disp.drawChar(0, 17 - y, '0' + now.Hour() / 10);
+    Disp.drawChar(7, 17 - y, '0' + now.Hour() % 10); 
+  
+    Disp.drawChar(18, 17 - y, '0' + now.Minute() / 10);
+    Disp.drawChar(25, 17 - y, '0' + now.Minute() % 10);
     
-    if (y==17)
-      {
-        Disp.drawRect(20,0+3,18,0+5,1);
-        Disp.drawRect(20,0+10,18,0+12,1);
-
-         Disp.drawRect(44,0+3,42,0+5,1);
-         Disp.drawRect(44,0+10,42,0+12,1);
-      }
+    if(now.Second() % 2 ){
+      Disp.drawCircle(15,21 - y,1,1);//4
+      Disp.drawCircle(15,28 - y,1,1);//11
+    }else{
+      Disp.drawCircle(15,21 - y,1,0);
+      Disp.drawCircle(15,28 - y,1,0);
+    }
 
     if((Tmr-lsRn)>5000 and y ==17) {s=1;}
     if (y == 0 and s==1) {
@@ -306,34 +300,6 @@ void anim_JG()
     }
     DoSwap = true; 
     }
-
-/*/==================== animasi jam dan running text =================//
-
-void jamCenter(){
-  if(adzan) return;
-
-  RtcDateTime now = Rtc.GetDateTime();
-    
-  Disp.drawFilledRect(0, 0, 31, 16, 0);
-  Disp.drawLine(31,0,31,16,1);
-  
-  if(now.Second() % 2 ){
-      Disp.drawCircle(15,4,1,1);
-      Disp.drawCircle(15,11,1,1);
-    }else{
-      Disp.drawCircle(15,4,1,0);
-      Disp.drawCircle(15,11,1,0);
-    }
-
-  fType(3);
-  
-  Disp.drawChar(0, 0, '0' + now.Hour() / 10);
-  Disp.drawChar(7, 0, '0' + now.Hour() % 10); 
-  
-  Disp.drawChar(18, 0, '0' + now.Minute() / 10);
-  Disp.drawChar(25, 0, '0' + now.Minute() % 10);
-  //DoSwap = true;
-}*/
 
 void runn(const char* msg, uint8_t speed, uint8_t fontt)
 {
@@ -481,9 +447,8 @@ void drawAzzan()
         lsRn = Tmr;
         if (!(ct & 1))  // Lebih cepat dibandingkan ct % 2 == 0
         {
-          fType(1);
-          dwCtr(0, 0, "ADZAN");
-          dwCtr(0, 8, sholat);
+          fType(1); dwCtr(0, 0, "ADZAN");
+          fType(0); dwCtr(0, 8, sholat);
           Buzzer(1);
            
         }
@@ -498,6 +463,8 @@ void drawAzzan()
     if ((Tmr - lsRn) > 1500 && (ct > limit))
     {
         show = ANIM_JAM;
+        sholatNow = -1;
+        adzan = false;
         ct = 0;
         Buzzer(0);
     }

@@ -45,7 +45,7 @@ IPAddress subnet(255, 255, 255, 0);
 #define MAX_FOLDER  3
 #define JEDA_ANTAR_TARTIL 20 //500 jeda antar file tartil dalam milidetik
 
-#define DEBUG 1
+//#define DEBUG 1
 
 struct WaktuConfig {
   bool aktif;
@@ -390,6 +390,7 @@ void AP_init() {
 }
 
 void setup() {
+  delay(5000);
   EEPROM.begin(EEPROM_SIZE);//
   
   digitalWrite(RELAY_PIN, HIGH); // Awal mati
@@ -406,17 +407,15 @@ void setup() {
     while (1);
   }
 
-  delay(500);
- 
-  
-  dfplayer.enableDAC(); // Pakai output DAC (line out)
-  Serial.println(F("Sistem Auto Tartil Siap."));
-  
   loadFromEEPROM();
+  delay(3000);
+  dfplayer.enableDAC(); // Pakai output DAC (line out)
   
-  delay(1000);
-
-  // --- Inisialisasi Watchdog Timer untuk ESP32 Core v3.x ---
+  dfplayer.volume(volumeDFPlayer);  
+  digitalWrite(RELAY_PIN, HIGH); // Awal mati
+  
+ 
+   // --- Inisialisasi Watchdog Timer untuk ESP32 Core v3.x ---
   esp_task_wdt_config_t wdt_config = {
     .timeout_ms = WDT_TIMEOUT * 1000,                // Ubah satuan detik menjadi milidetik
     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1, // Memantau aktivitas di semua core
@@ -426,12 +425,11 @@ void setup() {
   esp_task_wdt_init(&wdt_config);
   esp_task_wdt_add(NULL); // Daftarkan fungsi loop() ke dalam pengawasan anjing penjaga
   Serial.println(F("Watchdog Timer Aktif!"));
-
-  // ---------------------------------------------------------
   
   AP_init();
-  dfplayer.volume(volumeDFPlayer);  
-  digitalWrite(RELAY_PIN, HIGH); // Awal mati
+
+  Serial.println(F("Sistem Auto Tartil Siap."));
+  Serial.println(F("jadwal=1"));
 }
 
 void loop() {
@@ -447,6 +445,22 @@ void loop() {
   cekSelesaiManual();
   getStatusRun();
   bacaDataSerial();
+  checkHourlyChime();
+}
+
+void checkHourlyChime() {
+ if(!voiceClock) return;
+ if(tartilSedangDiputar || adzanSedangDiputar || manualSedangDiputar || adzanManualSedangDiputar) return;
+ static int8_t lastHalfPlay = -1;
+
+  // Bunyi jam tepat
+  if (minute() == 0 && second() == 0 && hour() != lastHalfPlay ) {
+    lastHalfPlay = hour();
+    uint8_t jam = hour() % 12;
+    if (jam == 0) { jam = 12; }
+    dfplayer.volume(volumeDFPlayer);
+    dfplayer.playFolder(3,jam);  // Folder 1 = suara jam 1-12
+  }
 }
 
 void bacaDataSerial() {
@@ -727,6 +741,15 @@ void parseData(const char* data) {
 
 //    Serial.print(F("[DEBUG At] Status Auto Tartil diubah menjadi: ")); 
 //    Serial.println(autoTartilEnable ? F("AKTIF") : F("NONAKTIF"));
+    saveToEEPROM();
+    return;
+  }
+
+   else if (strncmp(data, "Vc:", 3) == 0) {
+    voiceClock = atoi(data + 3);
+
+//    Serial.print(F("[DEBUG At] Status Voice Clock diubah menjadi: ")); 
+//    Serial.println(voiceClock ? F("AKTIF") : F("NONAKTIF"));
     saveToEEPROM();
     return;
   }

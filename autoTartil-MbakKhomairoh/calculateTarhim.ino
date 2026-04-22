@@ -59,7 +59,7 @@ void cekDanPutarSholatNonBlocking() {
   // Cetak hanya sekali pada jam tertentu
   if (minute() == 0  && second() == 0 && !stateJadwal) {
     stateJadwal = true;
-    //Serial.println(F("jadwal"));
+    Serial.println(F("jadwal=1"));
    // if(wsConnected){ webSocket.sendTXT("jadwal"); }
   } else if (second() != 0) {
     stateJadwal = false;
